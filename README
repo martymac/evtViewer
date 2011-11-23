@@ -1,0 +1,36 @@
+evtViewer - A PERL-based viewer for Ms event (*.evt) log files.
+
+About :
+*******
+
+evtViewer has been inspired from :
+
+- Christophe Monniez's evtreader (fccu.evtreader.pl) : http://www.d-fence.be
+- MSDN specs http://msdn.microsoft.com/library/default.asp?url=/library/en-us/eventlog/base/eventlogrecord_str.asp
+- ... and various documentation found on the Internet ...
+
+It is provided under the GPLv2 license (see COPYING) for more details.
+
+Usage :
+*******
+
+To use evtViewer, just type-in :
+
+./evtViewer logfile.evt
+
+Try ./evtViewer -h to get a detailed help message.
+
+Limitations :
+*************
+
+evtViewer only displays event entries from an evt file.
+It does *not* manage the evt file header itself.
+
+Where to find the latest version :
+**********************************
+
+Latest version on http://contribs.martymac.org
+
+--
+Ganael LAPLANCHE - ganael.laplanche@martymac.org
+

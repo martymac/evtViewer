@@ -1,0 +1,772 @@
+#!/usr/bin/perl
+
+# Copyright (C) 2006-2010 Ganael LAPLANCHE - Institut Pasteur
+
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Latest version on http://contribs.martymac.org
+
+use strict ;
+use warnings ;
+
+use Encode ;
+use Getopt::Std ;
+use IO::File ;
+
+my $VERSION = 'evtViewer v0.5' ;
+$Getopt::Std::STANDARD_HELP_VERSION = 1 ;
+
+### MS stuff - ID declarations ###
+my %eventIdCodes = (
+    '512' => 'System Restart',
+    '513' => 'System Shutdown',
+    '514' => 'Authentication Package Load',
+    '515' => 'Logon Process Registered',
+    '516' => 'Some Audit Event Records Discarded',
+    '517' => 'Audit Log Cleared',
+    '518' => 'Notification package loaded by the Security Account Manager',
+    '519' => 'A process is using an invalid local procedure call (LPC) port',
+    '520' => 'The system time was changed',
+    '528' => 'Successful Logon',
+    '529' => 'Unknown Username or Bad Password',
+    '530' => 'Account logon time restriction',
+    '531' => 'Account Currently Disabled',
+    '532' => 'User account has expired',
+    '533' => "User can't log on to this computer",
+    '534' => 'Logon Type Restricted',
+    '535' => 'Password Expired',
+    '536' => 'The NetLogon component is not active',
+    '537' => 'Unexpected error',
+    '538' => 'User Logoff',
+    '539' => 'Account locked out',
+    '540' => 'Successful network logon',
+    '541' => 'IPSec security association established',
+    '542' => 'IPSec security association ended. Mode: Data Protection (Quick mode)',
+    '543' => 'IPSec security association ended. Mode: Key Exchange (Main mode)',
+    '544' => 'IPSec security association establishment failed because peer could not authenticate',
+    '545' => 'IPSec peer authentication failed',
+    '546' => 'IPSec security association establishment failed because peer sent invalid proposal',
+    '547' => 'IPSec security association negotiation failed',
+    '552' => 'Logon attempt using explicit credentials',
+    '560' => 'Object Open',
+    '561' => 'Handle Allocated',
+    '562' => 'Handle Closed',
+    '563' => 'Object open for deletion',
+    '564' => 'Object Deleted',
+    '565' => 'Object Open (Active Directory)',
+    '566' => 'Object Operation (W3 Active Directory)',
+    '567' => 'Object Access Attempt',
+    '576' => 'Special Privilege Assigned',
+    '577' => 'Privileged Service Called',
+    '578' => 'Priviledge Object Operation',
+    '592' => 'New Process Has Been Created',
+    '593' => 'Process Has Exited',
+    '594' => 'Handle Duplicated',
+    '595' => 'Indirect Access to Object',
+    '600' => 'A process was assigned a primary token',
+    '601' => 'Attempt to install service',
+    '602' => 'Scheduled Task created',
+    '608' => 'User Right Assigned',
+    '609' => 'User Right Removed',
+    '610' => 'New Trusted Domain',
+    '611' => 'Removing Trusted Domain',
+    '612' => 'Audit Policy Change',
+    '613' => 'IPSec policy agent started',
+    '614' => 'IPSec policy agent disabled',
+    '615' => 'IPSEC Policy Changed',
+    '616' => 'IPSec policy agent agent encountered a potentially serious failure',
+    '617' => 'Kerberos Policy Changed',
+    '618' => 'Encrypted Data Recovery Policy Changed',
+    '619' => 'Quality of Service Policy Changed',
+    '620' => 'Trusted Domain Information Modified',
+    '621' => 'System Security Access Granted',
+    '622' => 'System Security Access Removed',
+    '623' => 'Per User Audit Policy was refreshed',
+    '624' => 'User Account Created',
+    '625' => 'User Account Type Change',
+    '626' => 'User Account Enabled',
+    '627' => 'Change Password Attempt',
+    '628' => 'User Account password set',
+    '629' => 'User Account Disabled',
+    '630' => 'User Account Deleted',
+    '631' => 'Global Group Created',
+    '632' => 'Global Group Member Added',
+    '633' => 'Global Group Member Removed',
+    '634' => 'Global Group Deleted',
+    '635' => 'Local Group Created',
+    '636' => 'Local Group Member Added',
+    '637' => 'Local Group Member Removed',
+    '638' => 'Local Group Deleted',
+    '639' => 'Local Group Changed',
+    '640' => 'General Account Database Change',
+    '641' => 'Global Group Changed',
+    '642' => 'User Account Changed',
+    '643' => 'Domain Policy Changed',
+    '644' => 'User Account Locked Out',
+    '645' => 'Computer Account Created',
+    '646' => 'Computer Account Changed',
+    '647' => 'Computer Account Deleted',
+    '648' => 'Security Disabled Local Group Created',
+    '649' => 'Security Disabled Local Group Changed',
+    '650' => 'Security Disabled Local Group Member Added',
+    '651' => 'Security Disabled Local Group Member Removed',
+    '652' => 'Security Disabled Local Group Deleted',
+    '653' => 'Security Disabled Global Group Created',
+    '654' => 'Security Disabled Global Group Changed',
+    '655' => 'Security Disabled Global Group Member Added',
+    '656' => 'Security Disabled Global Group Member Removed',
+    '657' => 'Security Disabled Global Group Deleted',
+    '658' => 'Security Enabled Universal Group Created',
+    '659' => 'Security Enabled Universal Group Changed',
+    '660' => 'Security Enabled Universal Group Member Added',
+    '661' => 'Security Enabled Universal Group Member Removed',
+    '662' => 'Security Enabled Universal Group Deleted',
+    '663' => 'Security Disabled Universal Group Created',
+    '664' => 'Security Disabled Universal Group Changed',
+    '665' => 'Security Disabled Universal Group Member Added',
+    '666' => 'Security Disabled Universal Group Member Removed',
+    '667' => 'Security Disabled Universal Group Deleted',
+    '668' => 'Group Type Changed',
+    '669' => 'Add SID History (Success)',
+    '670' => 'Add SID History (Failure)',
+    '671' => 'User Account Unlocked',
+    '672' => 'Authentication Ticket Granted',
+    '673' => 'Service Ticket Granted',
+    '674' => 'Ticket Granted Renewed',
+    '675' => 'Pre-authentication failed',
+    '676' => 'Authentication Ticket Request Failed',
+    '677' => 'Service Ticket Request Failed',
+    '678' => 'Account Mapped for Logon',
+    '679' => 'Account could not be mapped for logon',
+    '680' => 'Account Used for Logon',
+    '681' => 'The logon to account: client name by: source from workstation: workstation failed. The error code was: error',
+    '682' => 'Session reconnected to winstation',
+    '683' => 'Session disconnected from winstation',
+    '684' => 'Set the security descriptor of members of administrative groups',
+    '685' => 'Account Name Changed',
+    '686' => 'Password of the following user accessed',
+    '687' => 'Application group operation',
+    '688' => 'Application group operation',
+    '689' => 'Application group operation',
+    '690' => 'Application group operation',
+    '691' => 'Application group operation',
+    '692' => 'Application group operation',
+    '693' => 'Application group operation',
+    '694' => 'Application group operation',
+    '695' => 'Application group operation',
+    '696' => 'Application group operation',
+    '768' => 'Collision detected between a namespace element in one forest and a namespace element in another forest',
+    '806' => 'Per User Audit Policy was refreshed',
+    '807' => 'Per user auditing policy set for user'
+) ;
+
+# idCodes-related string meanings
+my %eventIdStrings = (
+    '528' => [ 'User Name', 'Domain', 'Logon ID', 'Logon Type', 'Logon Process', 'Auth. Package', 'Workstation Name', 'Logon GUID' ],
+    '529' => [ 'User Name', 'Domain', 'Logon Type', 'Logon Process', 'Auth. Package', 'Workstation Name' ],
+    '538' => [ 'User Name', 'Domain', 'Logon ID', 'Logon Type' ],
+    '540' => [ 'User Name', 'Domain', 'Logon ID', 'Logon Type', 'Logon Process', 'Auth. Package', 'Workstation Name', 'Logon GUID' ],
+    '551' => [ 'User Name', 'Domain', 'Logon ID' ]
+) ;
+
+my %eventCategoryCodes = (
+    '0' => 'None',
+    '1' => 'System',
+    '2' => 'Logon/Logoff',
+    '3' => 'Object access',
+    '4' => 'Privilege use',
+    '5' => 'Process tracking',
+    '6' => 'Policy change',
+    '7' => 'Account Management',
+    '8' => 'Directory service access', # Not verified
+    '9' => 'Account logon'
+) ;
+
+my %eventTypeCodes = (
+    '0'  => 'Success',
+    '1'  => 'Error',
+    '2'  => 'Warning',
+    '4'  => 'Information',
+    '8'  => 'Success Audit',
+    '16' => 'Failure Audit'
+) ;
+
+my %wellKnownSIDs = (
+    'S-1-0'        => 'Null Authority',
+    'S-1-0-0'      => 'Nobody',
+    'S-1-1'        => 'World Authority',
+    'S-1-1-0'      => 'Everyone',
+    'S-1-2'        => 'Local Authority',
+    'S-1-3'        => 'Creator Authority',
+    'S-1-3-0'      => 'Creator Owner',
+    'S-1-3-1'      => 'Creator Group',
+    'S-1-3-2'      => 'Creator Owner Server',
+    'S-1-3-3'      => 'Creator Group Server',
+    'S-1-4'        => 'Non-unique Authority',
+    'S-1-5'        => 'NT Authority',
+    'S-1-5-1'      => 'Dialup',
+    'S-1-5-2'      => 'Network',
+    'S-1-5-3'      => 'Batch',
+    'S-1-5-4'      => 'Interactive',
+    'S-1-5-5'      => 'Logon Session',   # Should have -X-Y here
+    'S-1-5-6'      => 'Service',
+    'S-1-5-7'      => 'Anonymous',
+    'S-1-5-8'      => 'Proxy',
+    'S-1-5-9'      => 'Enterprise Domain Controllers',
+    'S-1-5-10'     => 'Principal Self',
+    'S-1-5-11'     => 'Authenticated Users',
+    'S-1-5-12'     => 'Restricted Code',
+    'S-1-5-13'     => 'Terminal Server Users',
+    'S-1-5-18'     => 'Local System',
+    'S-1-5-19'     => 'NT Authority',
+    'S-1-5-20'     => 'NT Authority',
+    'S-1-5-32-544' => 'Administrators',
+    'S-1-5-32-545' => 'Users',
+    'S-1-5-32-546' => 'Guests',
+    'S-1-5-32-547' => 'Power Users',
+    'S-1-5-32-548' => 'Account Operators',
+    'S-1-5-32-549' => 'Server Operators',
+    'S-1-5-32-550' => 'Print Operators',
+    'S-1-5-32-551' => 'Backup Operators',
+    'S-1-5-32-552' => 'Replicators',
+    'S-1-5-32-554' => 'BUILTIN\Pre-Windows 2000 Compatible Access',
+    'S-1-5-32-555' => 'BUILTIN\Remote Desktop Users',
+    'S-1-5-32-556' => 'BUILTIN\Network Configuration Operators',
+    'S-1-5-32-557' => 'BUILTIN\Incoming Forest Trust Builders',
+    'S-1-5-32-557' => 'BUILTIN\Incoming Forest Trust Builders',
+    'S-1-5-32-558' => 'BUILTIN\Performance Monitor Users',
+    'S-1-5-32-559' => 'BUILTIN\Performance Log Users',
+    'S-1-5-32-560' => 'BUILTIN\Windows Authorization Access Group',
+    'S-1-5-32-561' => 'BUILTIN\Terminal Server License Servers'
+) ;
+
+my %wellKnownRIDs = (
+    '500' => 'Administrator',
+    '501' => 'Guest',
+    '502' => 'KRBTGT',
+    '512' => 'Admins',
+    '513' => 'Users',
+    '514' => 'Guests',
+    '515' => 'Computers',
+    '516' => 'Controllers',
+    '517' => 'Cert Publishers',
+    '518' => 'Schema Admins',
+    '519' => 'Enterprise Admins',
+    '520' => 'Group Policy Creator Owners',
+    '533' => 'RAS and IAS Servers',
+    '544' => 'Builtin Admins',
+    '545' => 'Builtin users',
+    '546' => 'Builtin Guests',
+    '547' => 'Builtin Power Users',
+    '548' => 'Builtin Account Operators',
+    '549' => 'Builtin System Operators',
+    '550' => 'Builtin Print Operators',
+    '551' => 'Builtin Backup Operators',
+    '552' => 'Builtin Replicator',
+    '553' => 'Builtin RAS Servers'
+) ;
+### End of ID declarations ###
+
+# Converts a binary SID to a string
+# ARG1 = binary sid
+# Based on Win32::Lanman::SidToString
+sub SidToString($)
+{
+    my ($binarySid) = @_ ;
+
+    if (not defined($binarySid) or ($binarySid eq ''))
+    {
+        return 'N/A' ;
+    }
+
+    my $version = unpack('C', substr($binarySid, 0, 1)) ;
+    my $numDashes = unpack('C', substr($binarySid, 1, 1)) ;
+
+    if (length($binarySid) != (8 + 4 * $numDashes))
+    {
+        return 'Invalid' ;
+    }
+
+    my $stringSid = "S-$version-" . unpack('V', substr($binarySid, 4, 4)) ;
+    for my $i (0 .. ($numDashes - 1))
+    {
+          $stringSid .= '-' . unpack('V', substr($binarySid, 8 + 4 * $i, 4)) ;
+    }
+    return $stringSid ;
+}
+
+# Returns next raw entry from the given file descriptor
+# ARG1 = file descriptor
+# returns '' if a wrong record has been read
+# returns 'EOF' if EOF has been reached
+sub getNextRawEntryFromFile($)
+{
+    my ($file) = @_ ;
+
+    my $buffer = '' ;
+    my $size = 0 ;
+
+    while ($buffer ne 'LfLe')
+    {
+            $size = read($file, $buffer, 4) ; # read DWORDs sequencially to find a record
+            if ($size <= 0) { return 'EOF' ; }
+    }
+    seek($file, -8, 1) ; # go back to the start of the record
+
+    $size = read($file, $buffer, 4) ; # read the length of the record
+    if ($size < 4 ) { return 'EOF' ; }
+
+    my $recordLength = unpack('V' ,$buffer) ; # and convert it
+
+    if ($recordLength > 56) # 56 bytes = full header length
+    {
+        seek($file, -4, 1) ; # go back to the start of the record
+        $size = read($file, $buffer, $recordLength) ; # read the whole record
+        if ($size < $recordLength ) { return 'EOF' ; }
+        return $buffer ;
+    }
+    else
+    {
+        seek($file, 8, 1) ; # skip the wrong record and return
+        return '' ;
+    }
+}
+
+# Decodes a raw entry and splits values
+# ARG1 = raw entry reference
+# returns a %decodedEntry, human readable hash
+sub getDecodedEntryFromRaw($)
+{
+    my ($rawEntry) = @_ ;
+    my %decodedEntry = () ;
+
+    # Split header / body and keep them
+    $decodedEntry{rawHeader} = substr($$rawEntry,0,56) ;
+    $decodedEntry{rawBody} = substr($$rawEntry,56) ;
+
+    ############### Header part ###############
+    # See      : http://msdn.microsoft.com/library/default.asp?url=/library/en-us/eventlog/base/eventlogrecord_str.asp
+    # See also : http://www.forensicswiki.org/wiki/EVT
+    # See also : http://www.d-fence.be
+
+    (my $length, my $reserved, my $recordNumber, my $timeGenerated, my $timeWritten, my $eventId, my $eventType, my $numStrings, my $eventCategory, my $reservedFlags, my $closingRecordNumber, my $stringOffset, my $userSIDLength, my $userSIDOffset, my $dataLength, my $dataOffset) = unpack('VVVVVVvvvvVVVVVV', $$rawEntry) ;
+
+    $decodedEntry{hdr_length} = $length ;                               # 4 bytes
+    $decodedEntry{hdr_reserved} = $reserved ;                           # 4 bytes - 'LfLe' flag
+    $decodedEntry{hdr_recordNumber} = $recordNumber ;                   # 4 bytes
+    $decodedEntry{hdr_timeGenerated} = $timeGenerated ;                 # 4 bytes
+    $decodedEntry{hdr_timeWritten} = $timeWritten ;                     # 4 bytes
+    $decodedEntry{hdr_eventId} = $eventId ;                             # 4 bytes
+    $decodedEntry{hdr_eventType} = $eventType ;                         # 2 bytes
+    $decodedEntry{hdr_numStrings} = $numStrings ;                       # 2 bytes
+    $decodedEntry{hdr_eventCategory} = $eventCategory ;                 # 2 bytes
+    $decodedEntry{hdr_reservedFlags} = $reservedFlags ;                 # 2 bytes
+    $decodedEntry{hdr_closingRecordNumber} = $closingRecordNumber ;     # 4 bytes
+    $decodedEntry{hdr_stringOffset} = $stringOffset ;                   # 4 bytes
+    $decodedEntry{hdr_userSIDLength} = $userSIDLength ;                 # 4 bytes
+    $decodedEntry{hdr_userSIDOffset} = $userSIDOffset ;                 # 4 bytes
+    $decodedEntry{hdr_dataLength} = $dataLength ;                       # 4 bytes
+    $decodedEntry{hdr_dataOffset} = $dataOffset ;                       # 4 bytes
+
+    ############### Body part ###############
+    # Event source (Unicode, \0\0 terminated)
+    # and computer name (Unicode, \0\0 terminated)
+    my $tmpData = substr($$rawEntry,56) ;
+    Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
+    ($decodedEntry{bdy_eventSource}, $decodedEntry{bdy_computer}) = split(/\0/,$tmpData) ;
+    # Sid, 5x4 bytes
+    $decodedEntry{bdy_sid} = SidToString(substr($$rawEntry,$userSIDOffset,$userSIDLength)) ;
+    # Strings start (should be stringOffset, Unicode, \0\0 terminated)
+    $tmpData = substr($$rawEntry,$stringOffset) ;
+    my @bdy_strings = () ;
+
+    Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
+    @bdy_strings = split(/\0/,$tmpData) ;
+    # ne garder que les $numStrings elements
+    splice(@bdy_strings, $numStrings) ;
+
+    $decodedEntry{bdy_strings} = \@bdy_strings ;
+    # Data start (should be dataOffset)
+    $decodedEntry{bdy_data} = substr($$rawEntry,$dataOffset,$dataLength) ;
+
+    return %decodedEntry ;
+}
+
+# Initializes a decodedEntryPool array from a file
+# ARG1 = @decodedEntryPool array reference
+# ARG2 = file descriptor
+# returns 0
+sub getDecodedEntriesFromFile($$)
+{
+    my ($decodedEntryPool, $file) = @_ ;
+
+    my $rawEntry = getNextRawEntryFromFile($file) ;
+    while ($rawEntry ne 'EOF')
+    {
+        if ($rawEntry ne '')
+        {
+            my %decodedEntry = getDecodedEntryFromRaw(\$rawEntry) ;
+            push(@{$decodedEntryPool}, \%decodedEntry) ;
+        }
+        $rawEntry = getNextRawEntryFromFile($file) ;
+    }
+
+    return 0 ;
+}
+
+# Prints a decoded entry
+# ARG1 = %decodedEntry hash reference
+# ARG2 = first column size
+# ARG3 = options hash reference
+# returns 0 or 1 if error
+sub printDecodedEntry($$$)
+{
+    my ($decodedEntry, $firstColumnLength, $options) = @_ ;
+
+    if ($options->{l} == 0)
+    {
+        ############### Raw part ###############
+        #print('Header : ' . $decodedEntry->{rawHeader} . "\n") ;
+        #print('Body   : ' . $decodedEntry->{rawBody} . "\n") ;
+        #print("\n") ;
+    
+        ############### Header part ###############
+        print("[Header part]\n") ;
+        if ($options->{v} == 1)
+        {
+            printf("%-${firstColumnLength}s: ", 'Length') ; print($decodedEntry->{hdr_length} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Reserved') ; print($decodedEntry->{hdr_reserved} . " (\"LfLe\" flag)\n") ;
+        }
+        printf("%-${firstColumnLength}s: ", 'Record number') ; print($decodedEntry->{hdr_recordNumber} . "\n") ;
+        printf("%-${firstColumnLength}s: ", 'Time generated') ; print(localtime($decodedEntry->{hdr_timeGenerated}) . ' local (' . gmtime($decodedEntry->{hdr_timeGenerated}) . " GMT)\n") ;
+        if ($options->{v} == 1)
+        {
+            printf("%-${firstColumnLength}s: ", 'Time written') ; print(localtime($decodedEntry->{hdr_timeWritten}) . ' local (' . gmtime($decodedEntry->{hdr_timeWritten}) . " GMT)\n") ;
+        }
+        printf("%-${firstColumnLength}s: ", 'Event ID') ; print($decodedEntry->{hdr_eventId} . ' (' . (defined($eventIdCodes{$decodedEntry->{hdr_eventId}}) ? $eventIdCodes{$decodedEntry->{hdr_eventId}} : 'no description') . ")\n") ;
+        printf("%-${firstColumnLength}s: ", 'Event type') ; print($decodedEntry->{hdr_eventType} . ' (' . (defined($eventTypeCodes{$decodedEntry->{hdr_eventType}}) ? $eventTypeCodes{$decodedEntry->{hdr_eventType}} : 'no description') . ")\n") ;
+        if ($options->{v} == 1)
+        {
+            printf("%-${firstColumnLength}s: ", 'Num of strings') ; print($decodedEntry->{hdr_numStrings} . "\n") ;
+        }
+        printf("%-${firstColumnLength}s: ", 'Event category') ; print($decodedEntry->{hdr_eventCategory} . ' (' . (defined($eventCategoryCodes{$decodedEntry->{hdr_eventCategory}}) ? $eventCategoryCodes{$decodedEntry->{hdr_eventCategory}} : 'no description') . ")\n") ;
+        if ($options->{v} == 1)
+        {
+            printf("%-${firstColumnLength}s: ", 'Reserved flags') ; print($decodedEntry->{hdr_reservedFlags} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Closing record #') ; print($decodedEntry->{hdr_closingRecordNumber} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'String offset') ; print($decodedEntry->{hdr_stringOffset} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'User SID length') ; print($decodedEntry->{hdr_userSIDLength} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'User SID offset') ; print($decodedEntry->{hdr_userSIDOffset} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Data length') ; print($decodedEntry->{hdr_dataLength} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Data offset') ; print($decodedEntry->{hdr_dataOffset} . "\n") ;
+        }
+        print("\n") ;
+    
+        ############### Body part ###############
+        print("[Body part]\n") ;
+        printf("%-${firstColumnLength}s: ", 'Event source') ; print($decodedEntry->{bdy_eventSource} . "\n") ;
+        printf("%-${firstColumnLength}s: ", 'Computer') ; print($decodedEntry->{bdy_computer} . "\n") ;
+        # SID
+        printf("%-${firstColumnLength}s: ", 'Sid') ; print($decodedEntry->{bdy_sid}) ;
+        if (defined($wellKnownSIDs{$decodedEntry->{bdy_sid}}))
+        {
+            print(' (' . $wellKnownSIDs{$decodedEntry->{bdy_sid}} . ')') ;
+        }
+        else
+        {
+            my @tmpIds = split(/-/, $decodedEntry->{bdy_sid}) ; # Get IDs, $tmpIds[-1] is the RID
+            if (defined($tmpIds[-1]) and defined($wellKnownRIDs{$tmpIds[-1]}))
+            {
+                print(' (' . $wellKnownRIDs{$tmpIds[-1]} . ')') ;
+            }
+            else
+            {
+                if (($tmpIds[-1] ne 'N/A') and ($tmpIds[-1] ne 'Invalid'))
+                {
+                    print(' (unresolved)') ;
+                }
+            }
+        }
+        print("\n") ;
+        # Strings
+        my $i = 0 ;
+        if (defined(@{$decodedEntry->{bdy_strings}}[$i]))
+        {
+            print("\n") ;
+            print("[Strings part]\n") ;
+            while (defined(@{$decodedEntry->{bdy_strings}}[$i]))
+            {
+                printf("%-${firstColumnLength}s: ",defined(@{$eventIdStrings{$decodedEntry->{hdr_eventId}}}[$i]) ? @{$eventIdStrings{$decodedEntry->{hdr_eventId}}}[$i] : 'String') ;
+                print(@{$decodedEntry->{bdy_strings}}[$i] . "\n") ;
+                $i++ ;
+            }
+        }
+    
+        print("\n") ;
+        # Data
+        if ($options->{v} == 1)
+        {
+            print("[Data part]\n") ;
+            printf("%-${firstColumnLength}s: ",'Data') ; print((($decodedEntry->{bdy_data} eq '') ? 'N/A' : $decodedEntry->{bdy_data}) . "\n") ;
+            print("\n") ;
+        }
+    }
+    else # log-like display
+    {
+        # Local time
+        my ($sec,$min,$hour,$mday,$mon) = localtime($decodedEntry->{hdr_timeGenerated}) ;
+        my @abbr = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ) ;
+        print("$abbr[$mon] $mday ") ;
+        print(($hour < 10 ? '0' : '') . $hour . ':' ) ;
+        print(($min < 10 ? '0' : '') . $min . ':' ) ;
+        print(($sec < 10 ? '0' : '') . $sec . ' ' ) ;
+
+        # Computer name
+        print($decodedEntry->{bdy_computer} . ': ') ;
+
+        # Record number (internal)
+        print($decodedEntry->{hdr_recordNumber} . ', ') ;
+
+        # Event ID, Type and Category
+        print($decodedEntry->{hdr_eventId} . ' (' . (defined($eventIdCodes{$decodedEntry->{hdr_eventId}}) ? $eventIdCodes{$decodedEntry->{hdr_eventId}} : 'no description') . '), ') ;
+        print($decodedEntry->{hdr_eventType} . ' (' . (defined($eventTypeCodes{$decodedEntry->{hdr_eventType}}) ? $eventTypeCodes{$decodedEntry->{hdr_eventType}} : 'no description') . '), ') ;
+        print($decodedEntry->{hdr_eventCategory} . ' (' . (defined($eventCategoryCodes{$decodedEntry->{hdr_eventCategory}}) ? $eventCategoryCodes{$decodedEntry->{hdr_eventCategory}} : 'no description') . ')') ;
+
+        # Strings
+        my $i = 0 ;
+        if (defined(@{$decodedEntry->{bdy_strings}}[$i])) { print(', ') ; }
+        while (defined(@{$decodedEntry->{bdy_strings}}[$i]))
+        {
+            print(@{$decodedEntry->{bdy_strings}}[$i]) ;
+            if (defined(@{$decodedEntry->{bdy_strings}}[$i+1])) { print(', ') ; }
+            $i++ ;
+        }
+
+        print("\n") ;
+    }
+
+    return 0 ;
+}
+
+# Removes bad entries from the entry pool given the specified options
+# ARG1 = @decodedEntryPool array reference
+# ARG2 = options hash reference
+# returns 0
+sub filterDecodedEntries($$)
+{
+    my ($decodedEntryPool, $options) = @_ ;
+
+    my $i = 0 ;
+    while (defined($decodedEntryPool->[$i]))
+    {
+        # Manage -n (record number)
+        if (defined($options->{n}) and ($options->{n} != $decodedEntryPool->[$i]->{hdr_recordNumber}))
+        {
+            splice(@{$decodedEntryPool}, $i, 1) ;
+            next ;
+        }
+        # Manage -i (id)
+        if (defined($options->{i}) and ($options->{i} != $decodedEntryPool->[$i]->{hdr_eventId}))
+        {
+            splice(@{$decodedEntryPool}, $i, 1) ;
+            next ;
+        }
+        # Manage -t (type)
+        if (defined($options->{t}) and ($options->{t} != $decodedEntryPool->[$i]->{hdr_eventType}))
+        {
+            splice(@{$decodedEntryPool}, $i, 1) ;
+            next ;
+        }
+        # Manage -c (category)
+        if (defined($options->{c}) and ($options->{c} != $decodedEntryPool->[$i]->{hdr_eventCategory}))
+        {
+            splice(@{$decodedEntryPool}, $i, 1) ;
+            next ;
+        }
+
+        $i++ ;
+    }
+
+    # Truncate results
+    if (($options->{x} > 0) and ($options->{x} < @{$decodedEntryPool}))
+    {
+        splice(@{$decodedEntryPool}, $options->{x}, @{$decodedEntryPool} - $options->{x}) ;
+    }
+    if (($options->{y} > 0) and ($options->{y} < @{$decodedEntryPool}))
+    {
+        splice(@{$decodedEntryPool}, 0, @{$decodedEntryPool} - $options->{y}) ;
+    }
+
+    # Display result #n
+    # Should return a result only if the given number is 1 <= number <= @{$decodedEntryPool}
+    # Else empty the array (nothing to return)
+    if (defined($options->{r}))
+    {
+        if (($options->{r} > 0) and ($options->{r} <= @{$decodedEntryPool}))
+        {
+            @{$decodedEntryPool} = ($decodedEntryPool->[$options->{r} - 1]) ;
+        }
+        else
+        {
+            @{$decodedEntryPool} = () ;
+        }
+    }
+
+    return 0 ;
+}
+
+# Print a decoded entry pool
+# ARG1 = @decodedEntryPool array reference
+# ARG2 = first column size
+# ARG3 = options hash reference
+# returns 0
+sub printDecodedEntries($$$)
+{
+    my ($decodedEntryPool, $firstColumnLength, $options) = @_ ;
+
+    my $i = 0 ;
+    while (defined($decodedEntryPool->[$i]))
+    {
+        my %decodedEntry = %{$decodedEntryPool->[$i]} ;
+        if ($options->{l} == 0)
+        {
+            print('--') ;
+            if ($options->{v} == 1) { print(' Entry #' . ($i + 1) . ' --') ; }
+            print("\n") ;
+        }
+        printDecodedEntry(\%decodedEntry, $firstColumnLength, $options) ;
+        $i++ ;
+    }
+
+    if ($i == 0)
+    {
+        print STDERR ("No entry found.\n") ;
+    }
+    else
+    {
+        if ($options->{v} == 1)
+        {
+            if ($options->{l} == 0) { print("--\n") ; }
+            print($i . " entr" . ($i > 1 ? "ies" : "y") . " found.\n") ;
+        }
+    }
+
+    return 0 ;
+}
+
+# Prints help
+sub HELP_MESSAGE()
+{
+    print("Usage: evtViewer [OPTIONS] [filename.evt [filename2.evt...]]\n") ;
+    print("\n") ;
+    print("== Filters ==\n") ;
+    print("  -n num :  show only events matching this record number\n") ;
+    print("  -i num :  show only events matching this event id\n") ;
+    print("  -t num :  show only events matching this event type\n") ;
+    print("  -c num :  show only events matching this event category\n") ;
+    print("== Limits ==\n") ;
+    print("  -x num :  show only the first num entries (0 = unlimited, default)\n") ;
+    print("  -y num :  show only the last num entries (0 = unlimited, default)\n") ;
+    print("  -r num :  show only result number num\n") ;
+    print("== Display ==\n") ;
+    print("  -l     :  log-like display mode\n") ;
+    print("  -v     :  verbose mode\n") ;
+    print("  -V     :  prints version\n") ;
+}
+
+# Prints version
+sub VERSION_MESSAGE()
+{
+    print("$VERSION\n") ;
+}
+
+##############
+#### Main ####
+##############
+
+my $firstColumnLength = 20 ;
+
+## Options ##
+
+my %options=() ;
+Getopt::Std::getopts("n:i:t:c:x:y:r:lvhV", \%options) ;
+
+if (defined($options{h}))
+{
+    VERSION_MESSAGE() ;
+    HELP_MESSAGE() ;
+    exit 0 ;
+}
+if (defined($options{V}))
+{
+    VERSION_MESSAGE() ;
+    exit 0 ;
+}
+if (defined($options{n}) and ($options{n} !~ /^[0-9]+$/)) { undef $options{n} ; }
+if (defined($options{i}) and ($options{i} !~ /^[0-9]+$/)) { undef $options{i} ; }
+if (defined($options{t}) and ($options{t} !~ /^[0-9]+$/)) { undef $options{t} ; }
+if (defined($options{c}) and ($options{c} !~ /^[0-9]+$/)) { undef $options{c} ; }
+if (not defined($options{x}) or (defined($options{x}) and ($options{x} !~ /^[0-9]+$/))) { $options{x} = 0 ; }
+if (not defined($options{y}) or (defined($options{y}) and ($options{y} !~ /^[0-9]+$/))) { $options{y} = 0 ; }
+if (defined($options{r}) and ($options{r} !~ /^[0-9]+$/)) { undef $options{r} ; }
+if (not defined($options{l})) { $options{l} = 0 ; } else { $options{l} = 1 ; }
+if (not defined($options{v})) { $options{v} = 0 ; } else { $options{v} = 1 ; }
+
+## Manage input (file or STDIN ?) ##
+
+my @decodedEntryPool = () ;
+
+if (@ARGV > 0)
+{
+    foreach my $fileName (@ARGV)
+    {
+        my $inputFile = IO::File->new() ;
+        if ((-f $fileName) and $inputFile->open("$fileName", 'r'))
+        {
+            binmode($inputFile) ;
+            getDecodedEntriesFromFile(\@decodedEntryPool, $inputFile) ;
+            $inputFile->close() ;
+        }
+        else
+        {
+            print STDERR ("Cannot open input file $fileName\n") ;
+        }
+    }
+}
+else # no parameter, read from 'STDIN'
+{
+    my $fileName = "/tmp/evtViewer.$$.tmp" ;
+
+    my $inputFile = IO::File->new() ;
+    $inputFile->open("$fileName", 'w+') or die("Cannot create output temporary file $fileName.\n") ;
+    binmode($inputFile) ;
+
+    # Copy STDIN data to the tmp file (need seek ability)
+    while (<STDIN>) { print $inputFile ($_) ; }
+    seek($inputFile, 0, 0) ;
+    getDecodedEntriesFromFile(\@decodedEntryPool, $inputFile) ;
+
+    # Close and delete temporary file
+    $inputFile->close() ;
+    unlink($fileName) ;
+}
+
+## Filter and print entries ##
+
+filterDecodedEntries(\@decodedEntryPool, \%options) ;
+printDecodedEntries(\@decodedEntryPool, $firstColumnLength, \%options) ;
+
+exit ((@decodedEntryPool > 0) ? 0 : 1) ;
+

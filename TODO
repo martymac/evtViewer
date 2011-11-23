@@ -1,0 +1,2 @@
+- Add more %eventIdCodes, %eventIdStrings, %wellKnownSIDs and %wellKnownRIDs ?
+  -> or allow a DLL to be used as input to extract messages/strings ?
