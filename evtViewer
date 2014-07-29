@@ -25,7 +25,7 @@ use Encode ;
 use Getopt::Std ;
 use IO::File ;
 
-my $VERSION = 'evtViewer v0.5' ;
+my $VERSION = 'evtViewer v0.6' ;
 $Getopt::Std::STANDARD_HELP_VERSION = 1 ;
 
 ### MS stuff - ID declarations ###
@@ -59,6 +59,7 @@ my %eventIdCodes = (
     '545' => 'IPSec peer authentication failed',
     '546' => 'IPSec security association establishment failed because peer sent invalid proposal',
     '547' => 'IPSec security association negotiation failed',
+    '551' => 'User initiated logoff',
     '552' => 'Logon attempt using explicit credentials',
     '560' => 'Object Open',
     '561' => 'Handle Allocated',
@@ -394,7 +395,7 @@ sub getDecodedEntryFromRaw($)
 
     Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
     @bdy_strings = split(/\0/,$tmpData) ;
-    # ne garder que les $numStrings elements
+    # Keep $numStrings elements only
     splice(@bdy_strings, $numStrings) ;
 
     $decodedEntry{bdy_strings} = \@bdy_strings ;
@@ -769,4 +770,3 @@ filterDecodedEntries(\@decodedEntryPool, \%options) ;
 printDecodedEntries(\@decodedEntryPool, $firstColumnLength, \%options) ;
 
 exit ((@decodedEntryPool > 0) ? 0 : 1) ;
-
