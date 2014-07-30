@@ -552,18 +552,19 @@ sub printDecodedEntry($$$)
     else # log-like display
     {
         # Local time
-        my ($sec, $min, $hour, $mday, $mon) = localtime($decodedEntry->{hdr_timeGenerated}) ;
+        my ($sec, $min, $hour, $mday, $mon, $year) = localtime($decodedEntry->{hdr_timeGenerated}) ;
         my @abbr = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ) ;
-        print("$abbr[$mon] $mday ") ;
+        $year += 1900 ;
+        print("$year $abbr[$mon] $mday ") ;
         print(($hour < 10 ? '0' : '') . $hour . ':' ) ;
         print(($min < 10 ? '0' : '') . $min . ':' ) ;
         print(($sec < 10 ? '0' : '') . $sec . ' ' ) ;
 
         # Computer name
-        print($decodedEntry->{bdy_computer} . ': ') ;
+        print($decodedEntry->{bdy_computer} . ' ') ;
 
         # Record number (internal)
-        print($decodedEntry->{hdr_recordNumber} . ', ') ;
+        print($decodedEntry->{hdr_recordNumber} . ': ') ;
 
         # Event ID, Type and Category
         print($decodedEntry->{hdr_eventId} . ' (' . (defined($eventIdCodes{$decodedEntry->{hdr_eventId}}) ? $eventIdCodes{$decodedEntry->{hdr_eventId}} : 'no description') . '), ') ;
