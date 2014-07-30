@@ -332,7 +332,7 @@ sub getNextRawEntryFromFile($)
     $size = read($file, $buffer, 4) ; # read the length of the record
     if ($size < 4 ) { return 'EOF' ; }
 
-    my $recordLength = unpack('V' ,$buffer) ; # and convert it
+    my $recordLength = unpack('V', $buffer) ; # and convert it
 
     if ($recordLength > $HEADER_LENGTH)
     {
@@ -357,8 +357,8 @@ sub getDecodedEntryFromRaw($)
     my %decodedEntry = () ;
 
     # Split header / body and keep them
-    $decodedEntry{rawHeader} = substr($$rawEntry,0,$HEADER_LENGTH) ;
-    $decodedEntry{rawBody} = substr($$rawEntry,$HEADER_LENGTH) ;
+    $decodedEntry{rawHeader} = substr($$rawEntry, 0, $HEADER_LENGTH) ;
+    $decodedEntry{rawBody} = substr($$rawEntry, $HEADER_LENGTH) ;
 
     ############### Header part ###############
     # See      : http://msdn.microsoft.com/library/default.asp?url=/library/en-us/eventlog/base/eventlogrecord_str.asp
@@ -387,9 +387,9 @@ sub getDecodedEntryFromRaw($)
     ############### Body part ###############
 
     # Event source (Unicode, \0\0 terminated) and computer name (Unicode, \0\0 terminated)
-    my $tmpData = substr($$rawEntry,$HEADER_LENGTH) ;
+    my $tmpData = substr($$rawEntry, $HEADER_LENGTH) ;
     Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
-    ($decodedEntry{bdy_eventSource}, $decodedEntry{bdy_computer}) = split(/\0/,$tmpData) ;
+    ($decodedEntry{bdy_eventSource}, $decodedEntry{bdy_computer}) = split(/\0/, $tmpData) ;
 
     # Sid, 5x4 bytes
     if ($userSIDOffset + $userSIDLength > $decodedEntry{hdr_length})
@@ -398,7 +398,7 @@ sub getDecodedEntryFromRaw($)
     }
     else
     {
-        $decodedEntry{bdy_sid} = SidToString(substr($$rawEntry,$userSIDOffset,$userSIDLength)) ;
+        $decodedEntry{bdy_sid} = SidToString(substr($$rawEntry, $userSIDOffset, $userSIDLength)) ;
     }
 
     # Strings start (should be stringOffset, Unicode, \0\0 terminated)
@@ -409,9 +409,9 @@ sub getDecodedEntryFromRaw($)
     }
     else
     {
-        $tmpData = substr($$rawEntry,$stringOffset) ;
+        $tmpData = substr($$rawEntry, $stringOffset) ;
         Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
-        @bdy_strings = split(/\0/,$tmpData) ;
+        @bdy_strings = split(/\0/, $tmpData) ;
         # Keep $numStrings elements only
         splice(@bdy_strings, $numStrings) ;
     }
@@ -424,7 +424,7 @@ sub getDecodedEntryFromRaw($)
     }
     else
     {
-        $decodedEntry{bdy_data} = substr($$rawEntry,$dataOffset,$dataLength) ;
+        $decodedEntry{bdy_data} = substr($$rawEntry, $dataOffset, $dataLength) ;
     }
 
     return %decodedEntry ;
@@ -534,7 +534,7 @@ sub printDecodedEntry($$$)
             print("[Strings part]\n") ;
             while (defined(@{$decodedEntry->{bdy_strings}}[$i]))
             {
-                printf("%-${firstColumnLength}s: ",defined(@{$eventIdStrings{$decodedEntry->{hdr_eventId}}}[$i]) ? @{$eventIdStrings{$decodedEntry->{hdr_eventId}}}[$i] : 'String') ;
+                printf("%-${firstColumnLength}s: ", defined(@{$eventIdStrings{$decodedEntry->{hdr_eventId}}}[$i]) ? @{$eventIdStrings{$decodedEntry->{hdr_eventId}}}[$i] : 'String') ;
                 print(@{$decodedEntry->{bdy_strings}}[$i] . "\n") ;
                 $i++ ;
             }
@@ -545,14 +545,14 @@ sub printDecodedEntry($$$)
         if ($options->{v} == 1)
         {
             print("[Data part]\n") ;
-            printf("%-${firstColumnLength}s: ",'Data') ; print((($decodedEntry->{bdy_data} eq '') ? 'N/A' : $decodedEntry->{bdy_data}) . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Data') ; print((($decodedEntry->{bdy_data} eq '') ? 'N/A' : $decodedEntry->{bdy_data}) . "\n") ;
             print("\n") ;
         }
     }
     else # log-like display
     {
         # Local time
-        my ($sec,$min,$hour,$mday,$mon) = localtime($decodedEntry->{hdr_timeGenerated}) ;
+        my ($sec, $min, $hour, $mday, $mon) = localtime($decodedEntry->{hdr_timeGenerated}) ;
         my @abbr = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ) ;
         print("$abbr[$mon] $mday ") ;
         print(($hour < 10 ? '0' : '') . $hour . ':' ) ;
