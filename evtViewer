@@ -377,6 +377,7 @@ sub getDecodedEntryFromRaw($$)
 
     (my $length, my $reserved, my $recordNumber, my $timeGenerated, my $timeWritten, my $eventId, my $eventType, my $numStrings, my $eventCategory, my $reservedFlags, my $closingRecordNumber, my $stringOffset, my $userSIDLength, my $userSIDOffset, my $dataLength, my $dataOffset) = unpack('VVVVVVvvvvVVVVVV', $$rawEntry) ;
 
+    ############## Header part (56 bytes)
     $decodedEntry{hdr_length} = $length ;                               # 4 bytes
     $decodedEntry{hdr_reserved} = $reserved ;                           # 4 bytes - 'LfLe' flag
     $decodedEntry{hdr_recordNumber} = $recordNumber ;                   # 4 bytes
@@ -393,8 +394,17 @@ sub getDecodedEntryFromRaw($$)
     $decodedEntry{hdr_userSIDOffset} = $userSIDOffset ;                 # 4 bytes
     $decodedEntry{hdr_dataLength} = $dataLength ;                       # 4 bytes
     $decodedEntry{hdr_dataOffset} = $dataOffset ;                       # 4 bytes
+    ############## Body part
+    # SourceName                                                        # (variable)
+    # Computername                                                      # (variable)
+    # UserSidPadding                                                    # (variable)
+    # UserSid                                                           # (variable)
+    # Strings                                                           # (variable)
+    # Data                                                              # (variable)
+    # Padding                                                           # (variable)
+    # Length2                                                           # 4 bytes
 
-    ############### Body part ###############
+    ############### Handle body part ###############
 
     # Event source (Unicode, \0\0 terminated) and computer name (Unicode, \0\0 terminated)
     my $tmpData = substr($$rawEntry, $HEADER_LENGTH) ;
@@ -433,6 +443,10 @@ sub getDecodedEntryFromRaw($$)
         {
             for (my $i = 0 ; $i < @bdy_strings ; $i++)
             {
+                # Convert \r and \n within string to space
+                $bdy_strings[$i] =~ tr/\r\n/  /s ;
+                # Trim resulting string
+                $bdy_strings[$i] =~ s/^\s+|\s+$//g ;
                 $bdy_strings[$i] = Encode::encode($enc, $bdy_strings[$i]) ;
             }
         }
