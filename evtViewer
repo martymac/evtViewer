@@ -410,13 +410,21 @@ sub getDecodedEntryFromRaw($$)
     my $tmpData = substr($$rawEntry, $HEADER_LENGTH) ;
     $tmpData = Encode::decode('UCS-2LE', $tmpData) ;
     ($decodedEntry{bdy_eventSource}, $decodedEntry{bdy_computer}) = split(/\0/, $tmpData) ;
+    if (isNull($decodedEntry{bdy_eventSource}))
+    {
+        $decodedEntry{bdy_eventSource} = "<unknown>" ;
+    }
+    if (isNull($decodedEntry{bdy_computer}))
+    {
+        $decodedEntry{bdy_computer} = "<unknown>" ;
+    }
     if (not isNull($enc))
     {
         $decodedEntry{bdy_eventSource} = Encode::encode($enc, $decodedEntry{bdy_eventSource}) ;
         $decodedEntry{bdy_computer} = Encode::encode($enc, $decodedEntry{bdy_computer}) ;
     }
 
-    # Sid, 5x4 bytes
+    # User SID, 5x4 bytes
     if ($userSIDOffset + $userSIDLength > $decodedEntry{hdr_length})
     {
         $decodedEntry{bdy_sid} = "<corrupt record>" ;
@@ -522,13 +530,13 @@ sub printDecodedEntry($$$)
         printf("%-${firstColumnLength}s: ", 'Event type') ; print($decodedEntry->{hdr_eventType} . ' (' . (defined($eventTypeCodes{$decodedEntry->{hdr_eventType}}) ? $eventTypeCodes{$decodedEntry->{hdr_eventType}} : 'no description') . ")\n") ;
         if ($options->{v} == 1)
         {
-            printf("%-${firstColumnLength}s: ", 'Num of strings') ; print($decodedEntry->{hdr_numStrings} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Num. of strings') ; print($decodedEntry->{hdr_numStrings} . "\n") ;
         }
         printf("%-${firstColumnLength}s: ", 'Event category') ; print($decodedEntry->{hdr_eventCategory} . ' (' . (defined($eventCategoryCodes{$decodedEntry->{hdr_eventCategory}}) ? $eventCategoryCodes{$decodedEntry->{hdr_eventCategory}} : 'no description') . ")\n") ;
         if ($options->{v} == 1)
         {
             printf("%-${firstColumnLength}s: ", 'Reserved flags') ; print($decodedEntry->{hdr_reservedFlags} . "\n") ;
-            printf("%-${firstColumnLength}s: ", 'Closing record #') ; print($decodedEntry->{hdr_closingRecordNumber} . "\n") ;
+            printf("%-${firstColumnLength}s: ", 'Closing record num.') ; print($decodedEntry->{hdr_closingRecordNumber} . "\n") ;
             printf("%-${firstColumnLength}s: ", 'String offset') ; print($decodedEntry->{hdr_stringOffset} . "\n") ;
             printf("%-${firstColumnLength}s: ", 'User SID length') ; print($decodedEntry->{hdr_userSIDLength} . "\n") ;
             printf("%-${firstColumnLength}s: ", 'User SID offset') ; print($decodedEntry->{hdr_userSIDOffset} . "\n") ;
@@ -540,9 +548,9 @@ sub printDecodedEntry($$$)
         ############### Body part ###############
         print("[Body part]\n") ;
         printf("%-${firstColumnLength}s: ", 'Event source') ; print($decodedEntry->{bdy_eventSource} . "\n") ;
-        printf("%-${firstColumnLength}s: ", 'Computer') ; print($decodedEntry->{bdy_computer} . "\n") ;
+        printf("%-${firstColumnLength}s: ", 'Computer name') ; print($decodedEntry->{bdy_computer} . "\n") ;
         # SID
-        printf("%-${firstColumnLength}s: ", 'Sid') ; print($decodedEntry->{bdy_sid}) ;
+        printf("%-${firstColumnLength}s: ", 'User SID') ; print($decodedEntry->{bdy_sid}) ;
         if (defined($wellKnownSIDs{$decodedEntry->{bdy_sid}}))
         {
             print(' (' . $wellKnownSIDs{$decodedEntry->{bdy_sid}} . ')') ;
@@ -590,27 +598,29 @@ sub printDecodedEntry($$$)
     {
         # Local time
         my ($sec, $min, $hour, $mday, $mon, $year) = localtime($decodedEntry->{hdr_timeGenerated}) ;
-        my @abbr = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ) ;
+        $mon += 1 ;
         $year += 1900 ;
-        print("$year $abbr[$mon] $mday ") ;
+        print("$year/" . ($mon < 10 ? '0' : '') . "$mon/$mday ") ;
         print(($hour < 10 ? '0' : '') . $hour . ':' ) ;
         print(($min < 10 ? '0' : '') . $min . ':' ) ;
         print(($sec < 10 ? '0' : '') . $sec . ' ' ) ;
 
-        # Computer name
-        print($decodedEntry->{bdy_computer} . ' ') ;
+        # Record number
+        print($decodedEntry->{hdr_recordNumber} . '; ') ;
 
-        # Record number (internal)
-        print($decodedEntry->{hdr_recordNumber} . ': ') ;
+        # Event source / Computer name / User SID
+        print($decodedEntry->{bdy_computer} . ' ') ;
+        print($decodedEntry->{bdy_eventSource} . '; ') ;
+        print($decodedEntry->{bdy_sid} . '; ') ;
 
         # Event ID, Type and Category
-        print($decodedEntry->{hdr_eventId} . ' (' . (defined($eventIdCodes{$decodedEntry->{hdr_eventId}}) ? $eventIdCodes{$decodedEntry->{hdr_eventId}} : 'no description') . '), ') ;
-        print($decodedEntry->{hdr_eventType} . ' (' . (defined($eventTypeCodes{$decodedEntry->{hdr_eventType}}) ? $eventTypeCodes{$decodedEntry->{hdr_eventType}} : 'no description') . '), ') ;
+        print($decodedEntry->{hdr_eventId} . ' (' . (defined($eventIdCodes{$decodedEntry->{hdr_eventId}}) ? $eventIdCodes{$decodedEntry->{hdr_eventId}} : 'no description') . '); ') ;
+        print($decodedEntry->{hdr_eventType} . ' (' . (defined($eventTypeCodes{$decodedEntry->{hdr_eventType}}) ? $eventTypeCodes{$decodedEntry->{hdr_eventType}} : 'no description') . '); ') ;
         print($decodedEntry->{hdr_eventCategory} . ' (' . (defined($eventCategoryCodes{$decodedEntry->{hdr_eventCategory}}) ? $eventCategoryCodes{$decodedEntry->{hdr_eventCategory}} : 'no description') . ')') ;
 
         # Strings
         my $i = 0 ;
-        if (defined(@{$decodedEntry->{bdy_strings}}[$i])) { print(', ') ; }
+        if (defined(@{$decodedEntry->{bdy_strings}}[$i])) { print('; ') ; }
         while (defined(@{$decodedEntry->{bdy_strings}}[$i]))
         {
             print(@{$decodedEntry->{bdy_strings}}[$i]) ;
@@ -700,6 +710,15 @@ sub printDecodedEntries($$$)
 {
     my ($decodedEntryPool, $firstColumnLength, $options) = @_ ;
 
+    # Print header
+    if (($options->{l} == 1) and ($options->{v} == 1))
+    {
+        print STDERR
+        (
+            "Date Time RecordNum; ComputerName EvtSource; UserSID; EvtID; EvtType; EvtCategory; String[, String2[, ...]]" . "\n"
+        ) ;
+    }
+
     my $i = 0 ;
     while (defined($decodedEntryPool->[$i]))
     {
@@ -722,8 +741,8 @@ sub printDecodedEntries($$$)
     {
         if ($options->{v} == 1)
         {
-            if ($options->{l} == 0) { print("--\n") ; }
-            print($i . " entr" . ($i > 1 ? "ies" : "y") . " found.\n") ;
+            if ($options->{l} == 0) { print STDERR ("--\n") ; }
+            print STDERR ($i . " entr" . ($i > 1 ? "ies" : "y") . " found.\n") ;
         }
     }
 
