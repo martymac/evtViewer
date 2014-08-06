@@ -350,10 +350,11 @@ sub getNextRawEntryFromFile($)
 
 # Decodes a raw entry and splits values
 # ARG1 = raw entry reference
+# ARG2 = target character encoding
 # returns a %decodedEntry, human readable hash
-sub getDecodedEntryFromRaw($)
+sub getDecodedEntryFromRaw($$)
 {
-    my ($rawEntry) = @_ ;
+    my ($rawEntry, $enc) = @_ ;
     my %decodedEntry = () ;
 
     # Split header / body and keep them
@@ -388,7 +389,7 @@ sub getDecodedEntryFromRaw($)
 
     # Event source (Unicode, \0\0 terminated) and computer name (Unicode, \0\0 terminated)
     my $tmpData = substr($$rawEntry, $HEADER_LENGTH) ;
-    Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
+    Encode::from_to($tmpData, 'UCS-2LE', $enc) ;
     ($decodedEntry{bdy_eventSource}, $decodedEntry{bdy_computer}) = split(/\0/, $tmpData) ;
 
     # Sid, 5x4 bytes
@@ -410,7 +411,7 @@ sub getDecodedEntryFromRaw($)
     else
     {
         $tmpData = substr($$rawEntry, $stringOffset) ;
-        Encode::from_to($tmpData, 'UCS-2LE', 'ascii') ;
+        Encode::from_to($tmpData, 'UCS-2LE', $enc) ;
         @bdy_strings = split(/\0/, $tmpData) ;
         # Keep $numStrings elements only
         splice(@bdy_strings, $numStrings) ;
@@ -433,17 +434,18 @@ sub getDecodedEntryFromRaw($)
 # Initializes a decodedEntryPool array from a file
 # ARG1 = @decodedEntryPool array reference
 # ARG2 = file descriptor
+# ARG3 = target character encoding
 # returns 0
-sub getDecodedEntriesFromFile($$)
+sub getDecodedEntriesFromFile($$$)
 {
-    my ($decodedEntryPool, $file) = @_ ;
+    my ($decodedEntryPool, $file, $enc) = @_ ;
 
     my $rawEntry = getNextRawEntryFromFile($file) ;
     while ($rawEntry ne 'EOF')
     {
         if ($rawEntry ne '')
         {
-            my %decodedEntry = getDecodedEntryFromRaw(\$rawEntry) ;
+            my %decodedEntry = getDecodedEntryFromRaw(\$rawEntry, $enc) ;
             push(@{$decodedEntryPool}, \%decodedEntry) ;
         }
         $rawEntry = getNextRawEntryFromFile($file) ;
@@ -709,8 +711,10 @@ sub HELP_MESSAGE()
     print("  -r num :  show only result number num\n") ;
     print("== Display ==\n") ;
     print("  -l     :  log-like display mode\n") ;
+    print("  -e     :  target character encoding to use when converting\n") ;
+    print("            strings (default: 'ascii')\n") ;
     print("  -v     :  verbose mode\n") ;
-    print("  -V     :  prints version\n") ;
+    print("  -V     :  print version\n") ;
 }
 
 # Prints version
@@ -728,17 +732,17 @@ my $firstColumnLength = 20 ;
 ## Options ##
 
 my %options=() ;
-Getopt::Std::getopts("n:i:t:c:x:y:r:lvhV", \%options) ;
+Getopt::Std::getopts("n:i:t:c:x:y:r:le:vVh", \%options) ;
 
+if (defined($options{V}))
+{
+    VERSION_MESSAGE() ;
+    exit 0 ;
+}
 if (defined($options{h}))
 {
     VERSION_MESSAGE() ;
     HELP_MESSAGE() ;
-    exit 0 ;
-}
-if (defined($options{V}))
-{
-    VERSION_MESSAGE() ;
     exit 0 ;
 }
 if (defined($options{n}) and ($options{n} !~ /^[0-9]+$/)) { undef $options{n} ; }
@@ -749,6 +753,12 @@ if (not defined($options{x}) or (defined($options{x}) and ($options{x} !~ /^[0-9
 if (not defined($options{y}) or (defined($options{y}) and ($options{y} !~ /^[0-9]+$/))) { $options{y} = 0 ; }
 if (defined($options{r}) and ($options{r} !~ /^[0-9]+$/)) { undef $options{r} ; }
 if (not defined($options{l})) { $options{l} = 0 ; } else { $options{l} = 1 ; }
+if (not defined($options{e}) or (defined($options{e}) and ($options{e} !~ /^\S+$/))) { $options{e} = 'ascii' ; }
+if (not grep(/^$options{e}$/, Encode->encodings(":all")))
+{
+    print STDERR ("Unsupported target character encoding: '" . $options{e} . "'\n") ;
+    exit 1 ;
+}
 if (not defined($options{v})) { $options{v} = 0 ; } else { $options{v} = 1 ; }
 
 ## Manage input (file or STDIN ?) ##
@@ -763,7 +773,7 @@ if (@ARGV > 0)
         if ((-f $fileName) and $inputFile->open("$fileName", 'r'))
         {
             binmode($inputFile) ;
-            getDecodedEntriesFromFile(\@decodedEntryPool, $inputFile) ;
+            getDecodedEntriesFromFile(\@decodedEntryPool, $inputFile, $options{e}) ;
             $inputFile->close() ;
         }
         else
@@ -783,7 +793,7 @@ else # no parameter, read from 'STDIN'
     # Copy STDIN data to the tmp file (need seek ability)
     while (<STDIN>) { print $inputFile ($_) ; }
     seek($inputFile, 0, 0) ;
-    getDecodedEntriesFromFile(\@decodedEntryPool, $inputFile) ;
+    getDecodedEntriesFromFile(\@decodedEntryPool, $inputFile, $options{e}) ;
 
     # Close and delete temporary file
     $inputFile->close() ;
