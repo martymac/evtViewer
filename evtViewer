@@ -21,7 +21,7 @@
 use strict ;
 use warnings ;
 
-use Encode ;
+use Encode qw(decode encode) ;
 use Getopt::Std ;
 use IO::File ;
 
@@ -281,7 +281,16 @@ my %wellKnownRIDs = (
 ### End of ID declarations ###
 
 # Record header length (in bytes)
-my $HEADER_LENGTH = 56;
+my $HEADER_LENGTH = 56 ;
+
+# Tests is a string is NULL
+# ARG1 = string to test
+sub isNull($)
+{
+  my ($string) = @_ ;
+  if (defined($string) && ($string !~ /^\s*$/)) { return 0 ; }
+  return 1 ;
+}
 
 # Converts a binary SID to a string
 # ARG1 = binary sid
@@ -362,7 +371,7 @@ sub getDecodedEntryFromRaw($$)
     $decodedEntry{rawBody} = substr($$rawEntry, $HEADER_LENGTH) ;
 
     ############### Header part ###############
-    # See      : http://msdn.microsoft.com/library/default.asp?url=/library/en-us/eventlog/base/eventlogrecord_str.asp
+    # See      : http://msdn.microsoft.com/en-us/library/cc231412.aspx
     # See also : http://www.forensicswiki.org/wiki/EVT
     # See also : http://www.d-fence.be
 
@@ -389,13 +398,18 @@ sub getDecodedEntryFromRaw($$)
 
     # Event source (Unicode, \0\0 terminated) and computer name (Unicode, \0\0 terminated)
     my $tmpData = substr($$rawEntry, $HEADER_LENGTH) ;
-    Encode::from_to($tmpData, 'UCS-2LE', $enc) ;
+    $tmpData = Encode::decode('UCS-2LE', $tmpData) ;
     ($decodedEntry{bdy_eventSource}, $decodedEntry{bdy_computer}) = split(/\0/, $tmpData) ;
+    if (not isNull($enc))
+    {
+        $decodedEntry{bdy_eventSource} = Encode::encode($enc, $decodedEntry{bdy_eventSource}) ;
+        $decodedEntry{bdy_computer} = Encode::encode($enc, $decodedEntry{bdy_computer}) ;
+    }
 
     # Sid, 5x4 bytes
     if ($userSIDOffset + $userSIDLength > $decodedEntry{hdr_length})
     {
-        $decodedEntry{bdy_sid} = "<corrupt record>";
+        $decodedEntry{bdy_sid} = "<corrupt record>" ;
     }
     else
     {
@@ -406,22 +420,29 @@ sub getDecodedEntryFromRaw($$)
     my @bdy_strings = () ;
     if ($stringOffset >= $decodedEntry{hdr_length})
     {
-        push(@bdy_strings, "<corrupt record>");
+        push(@bdy_strings, "<corrupt record>") ;
     }
     else
     {
         $tmpData = substr($$rawEntry, $stringOffset) ;
-        Encode::from_to($tmpData, 'UCS-2LE', $enc) ;
+        $tmpData = Encode::decode('UCS-2LE', $tmpData) ;
         @bdy_strings = split(/\0/, $tmpData) ;
         # Keep $numStrings elements only
         splice(@bdy_strings, $numStrings) ;
+        if (not isNull($enc))
+        {
+            for (my $i = 0 ; $i < @bdy_strings ; $i++)
+            {
+                $bdy_strings[$i] = Encode::encode($enc, $bdy_strings[$i]) ;
+            }
+        }
     }
     $decodedEntry{bdy_strings} = \@bdy_strings ;
 
     # Data start (should be dataOffset)
     if ($dataOffset + $dataLength > $decodedEntry{hdr_length})
     {
-        $decodedEntry{bdy_data} = "";
+        $decodedEntry{bdy_data} = "" ;
     }
     else
     {
@@ -711,8 +732,8 @@ sub HELP_MESSAGE()
     print("  -r num :  show only result number num\n") ;
     print("== Display ==\n") ;
     print("  -l     :  log-like display mode\n") ;
-    print("  -e     :  target character encoding to use when converting\n") ;
-    print("            strings (default: 'ascii')\n") ;
+    print("  -e     :  target character encoding to use when converting strings\n") ;
+    print("            (default: 'ascii', set to '' to skip re-encoding)\n") ;
     print("  -v     :  verbose mode\n") ;
     print("  -V     :  print version\n") ;
 }
@@ -753,8 +774,8 @@ if (not defined($options{x}) or (defined($options{x}) and ($options{x} !~ /^[0-9
 if (not defined($options{y}) or (defined($options{y}) and ($options{y} !~ /^[0-9]+$/))) { $options{y} = 0 ; }
 if (defined($options{r}) and ($options{r} !~ /^[0-9]+$/)) { undef $options{r} ; }
 if (not defined($options{l})) { $options{l} = 0 ; } else { $options{l} = 1 ; }
-if (not defined($options{e}) or (defined($options{e}) and ($options{e} !~ /^\S+$/))) { $options{e} = 'ascii' ; }
-if (not grep(/^$options{e}$/, Encode->encodings(":all")))
+if (not defined($options{e})) { $options{e} = 'ascii' ; }
+if ((not isNull($options{e})) and (not grep(/^$options{e}$/, Encode->encodings(":all"))))
 {
     print STDERR ("Unsupported target character encoding: '" . $options{e} . "'\n") ;
     exit 1 ;
