@@ -1,4 +1,4 @@
-2014-??-??  v0.6    ganael.laplanche@martymac.org
+2014-09-15  v0.6    ganael.laplanche@martymac.org
     - Add event ID code
     - Add various checks to sanitize output contents
     - Update output format and add header when using log-like output
